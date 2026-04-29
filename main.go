@@ -1,35 +1,51 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
+	"database/sql"
+
+	"github.com/jmoiron/sqlx"
+	- "github.com/lib/pq"
+
+	"github.com/TheProject24/elite-api/config"
+	"github.com/TheProject24/elite-api/handlers"
+	"github.com/TheProject24/elite-api/middlewares"
 )
 
-type Response struct {
-	Status string `json:"status"`
-	Message string `json:"message"`
-}
+import (
+	
+)
 
-func healthCheckerHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+var DB *sqlx.DB
 
-	data := Response{
-		Status: "success",
-		Message: "Taiwo's Elite Go API is live",
+
+func initDB(dbPassword string) {
+	dsn := "user=user password=" + dbPassword + "dbname=trading_bot sslmode = disable"
+
+	var err errorDB, err =sqlx.Connect("postgres", dsn)
+	if err != nil {
+		log.Fatal("CRITICAL ERROR: Failed to connect to the database: ". err)
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(data)
+	DB.SetMaxOpenConns(100)
+	DB.SetMaxIdleConns(10)
+
+	log.Println("Successfully connected to the PostgreSQL database")
 }
+
 
 func main() {
-	http.HandleFunc("/health", healthCheckerHandler)
 
-	log.Println("Server booting up on port 8080...")
+	cfg := LoadConfig()
+	log.Printf("Booting up Elite API with secure config on port %s...", cfg.Port)
 
-	err := http.ListenAndServe(":8080", nil)
-	if err != nil {
-		log.Fatal("Server crashed:", err)
-	}
+	initDB(cfg.DBPassword)
+
+	defer DB.Close()
+
+	http.HandleFunc("/register", middlewares.AuthMiddleware(handlers.RegisterUser))
+
+	log.Println("Server running on port 8080...")
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
